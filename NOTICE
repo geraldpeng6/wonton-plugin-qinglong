@@ -1,29 +1,18 @@
-图标
-====
+青龙面板（qinglong）
+====================
 
-`icon.svg` 为本仓库原创，按插件规范的线条风格手写，未用图片模型生成。从模板新建的插件换成自己的图标时，这里按实际情况重写。
+`icon.svg` 取自青龙面板的官方图标（favicon）：
+https://qn.whyour.cn/favicon.svg ，仅去掉了 DOCTYPE、空的 style 块和 width/height
+属性，并补上白色底；图形未做修改。
 
-许可证
-------
+版权与许可
+----------
 
-MIT License
+青龙面板的代码以 Apache License 2.0 分发：
+https://github.com/whyour/qinglong/blob/develop/LICENSE
+本插件包中的图标按同一许可证分发。
 
-Copyright (c) 2026 Wonton plugin authors
+商标
+----
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+"青龙"、"qinglong" 及其标志是 whyour 的商标。本插件是上游应用的打包，与上游作者没有隶属或背书关系。

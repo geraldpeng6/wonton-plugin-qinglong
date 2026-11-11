@@ -1,43 +1,47 @@
-# 云吞插件模板
+# 定时任务（青龙）
 
-开发流程见[插件开发指南](https://github.com/wontonapp/wonton-docs/blob/main/develop.md)。
+在手机上管理家里的定时脚本。像手机上的定时提醒，只是跑的是你写的 Python、JavaScript、Shell 脚本：每天定时备份文件、定时抓取信息、定时发条提醒。
 
-这是一个能安装的示例插件 `app.example.hello`：使用 nginx 官方镜像显示问候页，经网关的 `sso: proxy` 注入用户名，页面显示“你好，<用户名>”。示例没有应用账号、持久化数据或 MCP 工具。
+装好后第一次打开，在页面里设置管理员用户名和密码，然后就都是青龙面板自己的界面了。
 
-## 示例文件
+## 能做什么
 
-| 路径 | 内容 |
-| --- | --- |
-| `docker-compose.yml` | 示例清单、nginx 服务和三个 `configs` |
-| `web/default.conf.template` | nginx 配置，启用 SSI 回显用户名并提供健康检查入口；只放行来自核心地址（`${WONTON_CORE_ADDRESS}`）的请求，其余来源 403 |
-| `web/index.html` | 问候页 |
-| `web/tokens.css` | 页面主题变量的后备值 |
-| `tabs/` | 示例主页的应用页面图标 |
-| `screenshots/home.png` | 商店详情页的示例截图 |
-| `scripts/smoke-probes.sh` | 检查真实页面和网关注入身份的插件探针 |
+- **定时任务**：到点执行脚本，支持秒级和 crontab 写法，跑过的日志随时回看。
+- **脚本管理**：在线编辑脚本和配置文件，也可以从脚本仓库一键拉取别人维护的脚本。
+- **环境变量**：脚本要用的账号、地址，放在面板的环境变量里，不用写死在代码里。
+- **依赖管理**：脚本要什么 Python 包、Node 包，在面板"依赖管理"里装，已预置国内镜像源。
 
-从模板创建自己的插件后，替换示例清单、网页和素材；具体步骤见[写插件](https://github.com/wontonapp/wonton-docs/blob/main/develop.md#写插件)。
+## 通知
 
-## 对着别的栈跑探针
+已经接好云吞的通知：任务脚本里调用青龙自带的通知函数（Python 脚本 `import notify` 后调 `notify.send`，JavaScript 脚本引入 `sendNotify.js` 调 `sendNotify`），消息会发进你的"云吞"私聊，不用再配推送渠道。
 
-`probes`、`api`、`session` 按 `.wonton/.env` 的 `WONTON_BASE_DOMAIN` 拼核心地址，`up` 起的栈自己写这个键。插件装进别人的栈、或者对着已有环境排查时，把那套栈的基础域名写进 `.wonton/.env`，不要只按实例名猜地址：实例名只是资源名前缀，网关按 Host 认域名，拼错了会回“没有安装”。
+想换成别的渠道（Server酱、Telegram 等），在面板"配置文件"里改 `config.sh` 里的通知变量即可；云吞预置的是"自定义通知"通道。
 
-```bash
-WONTON_BASE_DOMAIN=wonton.localhost
-```
+面板"系统通知"里的"测试"按钮走的是另一份面板配置，默认是空的，需要的话在面板"系统通知"里自己配一遍同样的自定义通知。
 
-## 核心镜像
+脚本通知里换行显示成 `\n`，长内容超过 2000 字截断，这是上游脚本和通知接口的显示约定。
 
-检查和冒烟默认用套件里的核心镜像（`ghcr.io/wontonapp/wonton-core:main`）；要固定别的核心镜像，在仓库 Settings → Variables 设 `WONTON_CORE_IMAGE`，手动触发“检查”时填的 `core-image` 输入优先。
+## 依赖镜像源
 
-## 更新开发套件
+给脚本装 Python、Node 依赖时已预置国内镜像（清华 PyPI、npmmirror），容器重建不会丢。要换别的源，注意面板"依赖设置"里改的配置重建后会丢，而且被预置的环境变量盖过；直接改 `docker-compose.yml` 里的 `PIP_INDEX_URL`、`npm_config_registry` 才是持久生效的写法。
 
-```bash
-scripts/dev.sh kit-update
-```
+## 定时时间
 
-在从模板新建的插件仓库中更新套件；本仓库是套件源头，执行时只提示并退出。版本、可选引用和自定义脚本约定见[开发指南](https://github.com/wontonapp/wonton-docs/blob/main/develop.md#更新开发套件)。
+面板里的定时按容器时区（北京时间）执行，和上游官方镜像的默认行为一致。
+
+## 给其他程序用（OpenAPI）
+
+青龙提供 OpenAPI：在面板"设置 → 应用"里新建应用，拿到 `client_id` 和 `client_secret`，别的程序就能用接口读写任务和脚本。云吞的 Agent 不直接调这套接口；要在自己的脚本里调用，看[青龙 API 文档](https://qinglong.online/)。
+
+## 安全提醒
+
+青龙能跑任意脚本——装一个脚本，等于让这段代码在这台电脑上以容器身份运行，它能访问外网和容器里能看到的一切。只装自己写的、或信得过的来源的脚本；现成脚本仓库里有来路不明的代码，导入前先看一眼内容。
 
 ## 图标
 
-`icon.svg` 是本仓库原创线条图标，按本仓库 MIT 许可证分发，见 [NOTICE](NOTICE)。
+`icon.svg` 用的是青龙面板的官方标志，归上游作者所有，见 [NOTICE](NOTICE)。
+
+## 相关文档
+
+- 上游项目：https://github.com/whyour/qinglong （Apache-2.0）
+- 开发流程：[插件开发指南](https://github.com/wontonapp/wonton-docs/blob/main/develop.md)，规则见[插件规范](https://github.com/wontonapp/wonton-docs/blob/main/plugin-spec.md)

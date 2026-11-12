@@ -1,78 +1,113 @@
-# 示例插件：nginx 显示一个网页，向登录的人问好。改成自己的应用见 https://github.com/wontonapp/wonton-docs/blob/main/develop.md#写插件。
+# 青龙面板：定时跑 Python / JavaScript / Shell 脚本的管理面板。
+#
+# 通知：青龙的脚本通知走它自己的配置文件 /ql/data/config/config.sh（面板"配置文件"里编辑）。
+# 首次启动前由一次性服务把 config.sh 预置成"自定义通知"通道，指向核心的通知接口：任务脚本里调用
+# notify（Python）或 sendNotify（JS）就会发进主人的"云吞"私聊。只在文件不存在时写入，用户后来
+# 在面板里改过的内容不会被覆盖。
 services:
-  web:
-    # 镜像按摘要固定（多架构镜像写清单列表的摘要），标签只给人看。
-    image: nginx:1.31.8-alpine@sha256:713fc2ebfd92e8217db451477182ee91944b123d2b1ee9fd5a8c6e91ca6c3a11
-    environment:
-      # 网关代登录：SSI 回显的 Remote-User 只信核心带来的。官方镜像启动时对 templates 目录里的
-      # *.template 做 envsubst，把下面的地址换进 nginx 配置（见 web/default.conf.template）。
-      WONTON_CORE_ADDRESS: ${WONTON_CORE_ADDRESS}
-    # 包里的文件经 configs 交给容器（核心在启动前写进去），不能用卷挂载。
+  seed-config:
+    # 镜像按摘要固定（多架构清单列表的摘要），标签只给人看。复用主镜像，不额外拉包。
+    image: whyour/qinglong:2.24.0@sha256:2431b8b92d5822423d7d598110294691ae2a32d7fbde5c5d5a963db8b4f47cc3
+    entrypoint:
+      - bash
+      - -c
+      - mkdir -p /ql/data/config && { test -s /ql/data/config/config.sh || cp /seed/config.sh /ql/data/config/config.sh; }
+    volumes:
+      - ${WONTON_APP_DATA}:/ql/data
     configs:
-      - source: site
-        target: /etc/nginx/templates/default.conf.template
-      - source: page
-        target: /usr/share/nginx/html/index.html
-      - source: tokens
-        target: /usr/share/nginx/html/tokens.css
+      - source: seed-config
+        target: /seed/config.sh
+    network_mode: none
+    restart: "no"
+
+  qinglong:
+    # 上游以 root 运行（pm2、crond、apk 装依赖），不写 user；镜像默认时区为 Asia/Shanghai，
+    # 面板里的定时按北京时间。
+    image: whyour/qinglong:2.24.0@sha256:2431b8b92d5822423d7d598110294691ae2a32d7fbde5c5d5a963db8b4f47cc3
+    depends_on:
+      seed-config:
+        condition: service_completed_successfully
+    environment:
+      # 面板装的 Python / Node 依赖走国内镜像源（环境变量对所有 pip、npm、pnpm 调用生效，
+      # 重建容器不丢；面板"依赖设置"里改的是容器内的配置文件，重建会丢，且被这里的变量盖过）。
+      PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+      npm_config_registry: https://registry.npmmirror.com
+    volumes:
+      - ${WONTON_APP_DATA}:/ql/data
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
+      # /api/health 检查 HTTP 服务和调度器（gRPC）都就绪，不只是进程活着。
+      test: ["CMD", "curl", "-sf", "--noproxy", "*", "http://127.0.0.1:5700/api/health"]
       interval: 30s
-      timeout: 5s
-      start_period: 30s
-      start_interval: 1s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+      start_interval: 3s
 
 configs:
-  site:
-    file: web/default.conf.template
-  page:
-    file: web/index.html
-  tokens:
-    file: web/tokens.css
+  seed-config:
+    content: |
+      ## 云吞预置：任务脚本的通知经青龙的"自定义通知"发给云吞，进了"云吞"私聊。
+      ## 面板"配置文件"里可以改成别的通知渠道。
+      export HITOKOTO="false"
+      export WEBHOOK_URL="${WONTON_NOTIFY_URL}"
+      export WEBHOOK_METHOD="POST"
+      export WEBHOOK_CONTENT_TYPE="application/json"
+      export WEBHOOK_BODY='title: $$title
+      body: $$content'
 
 x-wonton:
-  spec: "0.6"
-  # 换成你自己的：反向域名形式，装上以后不能改。
-  id: app.example.hello
-  version: 0.1.1
+  spec: "0.12"
+  id: com.github.whyour.qinglong
+  version: 0.1.0
   kind: app
-  title: { zh: 你好, en: Hello }
-  description: { zh: 向登录的人问好的示例网页, en: An example page that greets whoever is signed in }
+  title: { zh: 定时任务（青龙）, en: Scheduled Tasks (Qinglong) }
+  description:
+    zh: 像手机上的定时提醒，在家里电脑上定时跑脚本：每天定时备份文件、抓取信息、发条提醒都行。会写 Python、JavaScript 或 Shell 脚本，把它交给青龙到点执行；现成的脚本仓库也能一键导入。
+    en: "Like a recurring reminder on your phone, it runs scripts on schedule at home: daily backups, fetching information, sending a notice. Hand it any Python, JavaScript or Shell script and Qinglong runs it on time; ready-made script repos can be imported with one click."
   icon: icon.svg
   notices: [NOTICE]
-  screenshots: [screenshots/home.png]
-  author: { name: Example }
-  homepage: https://nginx.org
-  # 应用（这里是 nginx）的许可证；插件包自己的许可证写在仓库的 LICENSE 里。
-  license: BSD-2-Clause
+  screenshots: [screenshots/01-crontab.png, screenshots/02-script.png, screenshots/03-log.png, screenshots/04-env.png]
+  author: { name: geraldpeng6, url: https://github.com/geraldpeng6 }
+  homepage: https://github.com/whyour/qinglong
+  # 青龙面板（qinglong）的许可证；插件包自己的许可证写在仓库的 LICENSE 里。
+  license: Apache-2.0
   tags:
-    zh: [工具]
-    en: [Tools]
+    zh: [效率, 工具]
+    en: [Productivity, Tools]
   about:
     zh: |
-      一个示例网页：登录以后，页面会向你问好。新建插件时可以照着改。
+      在家里电脑上定时跑脚本的面板：到点执行 Python、JavaScript、Shell 脚本，不用再开着电脑手动跑。
+
+      能做什么：写好脚本定时备份、定时抓取、定时提醒；在线管理脚本、定时规则、环境变量；任务日志随时回看；依赖装在面板里，脚本要用什么包就在面板里装。
+
+      通知已经接好：脚本里调用青龙的通知（Python 的 notify、JavaScript 的 sendNotify），消息会发进"云吞"私聊，不用再配推送渠道。
+
+      注意：脚本能做脚本能做的一切事，相当于给这台电脑上跑你写（或你找到）的程序；只装自己信得过的脚本和脚本仓库。
     en: |
-      An example page: once you are signed in, the page says hello. Copy it as a starting point for a new plugin.
-  release_notes: { zh: 名字和说明更新。, en: Product name and description update. }
+      A panel that runs scripts on a schedule on your home computer: Python, JavaScript and Shell scripts execute on time, no computer left open by hand.
+
+      What it does: scheduled backups, fetching, reminders; manage scripts, cron rules, environment variables online; view task logs anytime; install the packages your scripts need right in the panel.
+
+      Notifications are wired up: call Qinglong's notify (Python) or sendNotify (JavaScript) in a script and the message lands in your Wonton chat, no push channel to configure.
+
+      Note: scripts can do anything a program can do — it runs code you write (or find) on this machine; only install scripts and script repos you trust.
+  release_notes: { zh: 首个版本。, en: Initial release. }
+  setup:
+    zh: 装好后第一次打开，在页面里设置管理员用户名和密码。
+    en: On first open, create the admin username and password on the page.
   webui:
-    service: web
-    port: 80
-    # 示例页回显网关注入的用户名，见 https://github.com/wontonapp/wonton-docs/blob/main/plugin-spec.md#网关代登录sso-proxy。
-    sso: proxy
-    proxy:
-      headers:
-        Remote-User: "{user}"
-  # 能放进侧边栏“我的应用”的页面，见 https://github.com/wontonapp/wonton-docs/blob/main/plugin-spec.md#应用页面tabs。放不放由用户决定。
-  tabs:
-    - id: home
-      title: { zh: 主页, en: Home }
-      icon: tabs/home.svg
-      icon_selected: tabs/home-fill.svg
-      path: /
-      # 这个页面没做适配，用默认的 inset：从状态栏下沿开始，页面不用管安全区。
-      # 想让内容从状态栏后面滚过，写 layout: edge-to-edge，并用 --wonton-inset-* 留出系统安全区的位置。
-  permissions: []
-  # 上游 nginx 官方镜像，amd64 和 arm64 都有；上游没写最低内存，按本机空闲实测取整（实测约 24M，取 64M）。
+    service: qinglong
+    port: 5700
+    # 应用自带登录：第一次打开在页面里初始化管理员，网关挡在前面，注册页只有主人打得开。
+    sso: none
+  permissions:
+    # 面板要拉脚本仓库、装依赖、脚本自己也要访问外部服务。
+    # The panel pulls script repos, installs dependencies, and scripts reach outside services.
+    - network.egress
+    # 任务脚本的通知经核心发进主人的"云吞"私聊。
+    # Task script notifications go through the core into the owner's Wonton chat.
+    - notify
+  # 上游官方镜像，amd64、arm64、armv7 都有；上游没写最低内存，按本机空闲实测取整（空载实测约 256M，取 512M 留任务运行余量）。
   requirements:
     arch: [amd64, arm64]
-    memory: 64M
+    memory: 512M

@@ -12,13 +12,19 @@
 QL_USER="smoke"
 QL_PASS="Wonton-Smoke-2.24"
 
-web_assert() { grep -q 'id="root"' && grep -qE 'umi\.[0-9a-f]+\.(js|css)'; } # 青龙是 SPA，外壳里只有 root 节点和 umi 产物
+web_assert() { # 青龙是 SPA，外壳里只有 root 节点和 umi 产物；stdin 只能读一次，先存下来
+  local page
+  page="$(cat)"
+  grep -q 'id="root"' <<<"$page" && grep -qE 'umi\.[0-9a-f]+\.(js|css)' <<<"$page"
+}
 
-ql_token() { # 登录拿青龙的 Bearer 令牌；登录失败多半是还没初始化，按上游首次打开的流程建管理员再登录
-  local resp
+ql_token() { # 登录拿青龙的 Bearer 令牌；登录失败（未初始化时业务码 450、HTTP 仍是 200）先按上游首次打开的流程建管理员再登录
+  local resp token
   resp="$(curl -fsS -b "$SMOKE_JAR" -X POST "$SMOKE_WEB_ORIGIN/api/user/login" \
     -H 'Content-Type: application/json' \
-    -d "{\"username\":\"$QL_USER\",\"password\":\"$QL_PASS\"}")" || {
+    -d "{\"username\":\"$QL_USER\",\"password\":\"$QL_PASS\"}")" || resp=""
+  token="$(jq -r '.data.token // empty' <<<"$resp")"
+  if [[ -z "$token" ]]; then
     curl -fsS -b "$SMOKE_JAR" -X PUT "$SMOKE_WEB_ORIGIN/api/user/init" \
       -H 'Content-Type: application/json' \
       -d "{\"username\":\"$QL_USER\",\"password\":\"$QL_PASS\"}" >/dev/null || {
@@ -29,10 +35,9 @@ ql_token() { # 登录拿青龙的 Bearer 令牌；登录失败多半是还没初
       -d "{\"username\":\"$QL_USER\",\"password\":\"$QL_PASS\"}")" || {
       echo "初始化后登录失败"; return 1
     }
-  }
-  local token
-  token="$(jq -r '.data.token // empty' <<<"$resp")"
-  [[ -n "$token" ]] || { echo "登录响应里没有令牌：$(head -c 120 <<<"$resp")"; return 1; }
+    token="$(jq -r '.data.token // empty' <<<"$resp")"
+    [[ -n "$token" ]] || { echo "登录响应里没有令牌：$(head -c 120 <<<"$resp")"; return 1; }
+  fi
   printf '%s' "$token"
 }
 

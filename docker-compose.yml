@@ -107,7 +107,7 @@ x-wonton:
     # 任务脚本的通知经核心发进主人的"云吞"私聊。
     # Task script notifications go through the core into the owner's Wonton chat.
     - notify
-  # 上游官方镜像，amd64、arm64、armv7 都有；上游没写最低内存，按本机空闲实测取整（实测约 240M，取 512M）。
+  # 上游官方镜像，amd64、arm64、armv7 都有；上游没写最低内存，按本机空闲实测取整（空载实测约 256M，取 512M 留任务运行余量）。
   requirements:
     arch: [amd64, arm64]
     memory: 512M
